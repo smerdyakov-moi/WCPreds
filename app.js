@@ -15,10 +15,17 @@ let allMatches = [];
 
 // 1. APP INITIALIZATION
 window.onload = async () => {
+    // Show loading state to prevent 0-0 flicker
+    document.getElementById("points-pragyan").innerText = "...";
+    document.getElementById("points-nischal").innerText = "...";
+
     db.collection("scores").doc("current_standings").onSnapshot((doc) => {
         if (doc.exists) {
             document.getElementById("points-pragyan").innerText = doc.data().Pragyan || 0;
             document.getElementById("points-nischal").innerText = doc.data().Nischal || 0;
+        } else {
+            document.getElementById("points-pragyan").innerText = "0";
+            document.getElementById("points-nischal").innerText = "0";
         }
     });
 
@@ -42,7 +49,6 @@ function renderMatches() {
     const tableBody = document.getElementById("match-table-body");
     tableBody.innerHTML = "";
     
-    // Status filter updated to catch all upcoming match states
     allMatches.filter(m => ["SCHEDULED", "TIMED", "POSTPONED"].includes(m.status)).slice(0, 5).forEach(m => {
         const tr = document.createElement("tr");
         tr.innerHTML = `<td><b>${m.homeTeam.shortName} vs ${m.awayTeam.shortName}</b></td>
@@ -60,7 +66,6 @@ async function savePrediction(m) {
     
     if (!sA || !sB) return alert("Enter scores!");
 
-    // Storing matchId as a string to match the API ID format
     await db.collection("predictions").add({
         user: currentUser, 
         matchId: String(m.id), 
@@ -73,10 +78,14 @@ async function savePrediction(m) {
     await updateLeaderboard();
 }
 
-// 4. THE LEADERBOARD ENGINE (Total Distance Logic)
+// 4. THE LEADERBOARD ENGINE
 async function updateLeaderboard() {
-    const predictionsSnap = await db.collection("predictions").get();
+    // 1. Get CURRENT score from DB first
+    const scoreDoc = await db.collection("scores").doc("current_standings").get();
+    let points = scoreDoc.exists ? scoreDoc.data() : { "Pragyan": 0, "Nischal": 0 };
     
+    // 2. Fetch new predictions
+    const predictionsSnap = await db.collection("predictions").get();
     let matchGroups = {};
     predictionsSnap.forEach(doc => {
         const p = doc.data();
@@ -92,6 +101,8 @@ async function updateLeaderboard() {
         const finalB = realMatch.score.fullTime.away;
 
         matchGroups[matchId].forEach(p => {
+            if (!points.hasOwnProperty(p.user)) points[p.user] = 0;
+
             if (p.homeScore === finalA && p.awayScore === finalB) {
                 points[p.user] += 5;
             } else if (Math.sign(p.homeScore - p.awayScore) === Math.sign(finalA - finalB)) {
@@ -99,11 +110,10 @@ async function updateLeaderboard() {
             }
         });
 
+        // +1 Closeness Logic
         if (matchGroups[matchId].length > 1) {
             const p1 = matchGroups[matchId][0];
             const p2 = matchGroups[matchId][1];
-            
-            // |Ax - Px| + |Ay - Py| logic
             const dist1 = Math.abs(finalA - p1.homeScore) + Math.abs(finalB - p1.awayScore);
             const dist2 = Math.abs(finalA - p2.homeScore) + Math.abs(finalB - p2.awayScore);
 
@@ -112,6 +122,7 @@ async function updateLeaderboard() {
         }
     }
 
+    // 3. Save the updated points back
     await db.collection("scores").doc("current_standings").set(points);
 }
 
