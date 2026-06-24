@@ -17,11 +17,6 @@ window.onload = async () => {
     document.getElementById("points-pragyan").innerText = "...";
     document.getElementById("points-nischal").innerText = "...";
 
-    const savedUser = localStorage.getItem("wcUser");
-    if (savedUser) {
-        logUserIn(savedUser);
-    }
-
     db.collection("scores").doc("current_standings").onSnapshot((doc) => {
         if (doc.exists) {
             document.getElementById("points-pragyan").innerText = doc.data().Pragyan || 0;
@@ -45,49 +40,33 @@ window.onload = async () => {
     try {
         const response = await fetch("/.netlify/functions/getMatches");
         const data = await response.json();
-        if (data.matches) {
-            allMatches = data.matches;
-            if (currentUser) {
-                await renderMatches();
-            }
-            await updateLeaderboard();
-        }
+        if (data.matches) allMatches = data.matches;
+        
+        const savedUser = localStorage.getItem("wcUser");
+        if (savedUser) logUserIn(savedUser);
+        
+        await updateLeaderboard();
     } catch (err) { console.error(err); }
 };
 
 async function renderMatches() {
     const tableBody = document.getElementById("match-table-body");
     tableBody.innerHTML = "";
+    if (!currentUser) return;
     
     const snap = await db.collection("predictions").where("user", "==", currentUser).get();
     const userPredictions = new Map();
-    snap.forEach(doc => {
-        const p = doc.data();
-        userPredictions.set(p.matchId, p);
-    });
+    snap.forEach(doc => userPredictions.set(doc.data().matchId, doc.data()));
 
     allMatches.filter(m => ["SCHEDULED", "TIMED", "POSTPONED"].includes(m.status)).slice(0, 5).forEach(m => {
         const p = userPredictions.get(String(m.id));
         const isLocked = !!p;
         const tr = document.createElement("tr");
-        
-        tr.innerHTML = `<td><b>${m.homeTeam.shortName} vs ${m.awayTeam.shortName}</b></td>
-            <td>
-                ${isLocked ? 
-                    `<b>${p.homeScore} - ${p.awayScore}</b>` : 
-                    `<input type="number" id="A-${m.id}" style="width:40px;"> - <input type="number" id="B-${m.id}" style="width:40px;">`
-                }
-            </td>
-            <td>
-                <button id="btn-${m.id}" ${isLocked ? 'disabled style="background-color: #808080; cursor: not-allowed;"' : ''}>
-                    ${isLocked ? 'Locked' : 'Lock In'}
-                </button>
-            </td>`;
+        tr.innerHTML = `<td><b>${m.homeTeam.tla} vs ${m.awayTeam.tla}</b></td>
+            <td>${isLocked ? `<b>${p.homeScore} - ${p.awayScore}</b>` : `<input type="number" id="A-${m.id}" style="width:40px;"> - <input type="number" id="B-${m.id}" style="width:40px;">`}</td>
+            <td><button id="btn-${m.id}" ${isLocked ? 'disabled style="background-color: #808080; cursor: not-allowed;"' : ''}>${isLocked ? 'Locked' : 'Lock In'}</button></td>`;
         tableBody.appendChild(tr);
-        
-        if (!isLocked) {
-            document.getElementById(`btn-${m.id}`).onclick = () => savePrediction(m);
-        }
+        if (!isLocked) document.getElementById(`btn-${m.id}`).onclick = () => savePrediction(m);
     });
 }
 
@@ -96,17 +75,11 @@ async function savePrediction(m) {
     const sB = document.getElementById(`B-${m.id}`).value;
     if (!sA || !sB) return alert("Enter scores!");
     
-    await db.collection("predictions").add({
-        user: currentUser, 
-        matchId: String(m.id), 
-        homeScore: parseInt(sA), 
-        awayScore: parseInt(sB),
-        timestamp: new Date()
+    await db.collection("predictions").doc(`${currentUser}_${m.id}`).set({
+        user: currentUser, matchId: String(m.id), homeScore: parseInt(sA), awayScore: parseInt(sB), timestamp: new Date()
     });
     
     alert("Locked!");
-    
-    // RE-RUN THIS TO GREY OUT THE BUTTONS IMMEDIATELY
     await renderMatches(); 
     await updateLeaderboard();
 }
@@ -114,7 +87,6 @@ async function savePrediction(m) {
 async function updateLeaderboard() {
     const scoreDoc = await db.collection("scores").doc("current_standings").get();
     let points = scoreDoc.exists ? scoreDoc.data() : { "Pragyan": 0, "Nischal": 0 };
-    
     const predictionsSnap = await db.collection("predictions").get();
     let matchGroups = {};
     predictionsSnap.forEach(doc => {
@@ -129,7 +101,7 @@ async function updateLeaderboard() {
 
         const finalA = realMatch.score.fullTime.home;
         const finalB = realMatch.score.fullTime.away;
-        let historyData = { match: realMatch.homeTeam.shortName + " vs " + realMatch.awayTeam.shortName, result: finalA + "-" + finalB, timestamp: new Date() };
+        let historyData = { match: realMatch.homeTeam.tla + " vs " + realMatch.awayTeam.tla, result: finalA + "-" + finalB, timestamp: new Date() };
 
         matchGroups[matchId].forEach(p => {
             historyData[p.user + "_pred"] = p.homeScore + "-" + p.awayScore;
@@ -161,7 +133,6 @@ function logUserIn(name) {
     document.getElementById("dashboard").style.display = "block";
     renderMatches(); 
 }
-
 
 document.getElementById("btn-pragyan").onclick = () => logUserIn("Pragyan");
 document.getElementById("btn-nischal").onclick = () => logUserIn("Nischal");

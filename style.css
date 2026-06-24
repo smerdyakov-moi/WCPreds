@@ -27,7 +27,7 @@ table {
 }
 th, td {
     border: 1px solid #808080;
-    padding: 5px;
+    padding: 8px;
     text-align: center;
 }
 button {
@@ -46,8 +46,6 @@ button:active {
 input {
     border: 2px inset #E0E0E0;
 }
-
-/* Layout */
 .dashboard-container {
     display: flex;
     gap: 30px;
@@ -62,3 +60,10 @@ input {
     border: 2px inset #E0E0E0;
     background-color: #FFFFFF;
 }
+.scroll-container table {
+    table-layout: fixed;
+}
+.scroll-container th:nth-child(1), .scroll-container td:nth-child(1) { width: 30%; }
+.scroll-container th:nth-child(2), .scroll-container td:nth-child(2) { width: 15%; }
+.scroll-container th:nth-child(3), .scroll-container td:nth-child(3) { width: 27.5%; }
+.scroll-container th:nth-child(4), .scroll-container td:nth-child(4) { width: 27.5%; }
