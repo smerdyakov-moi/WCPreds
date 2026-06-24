@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WC2026</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+    <center>
+        <h1>World Cup Predictor 2026</h1>
+        <hr width="80%">
+    </center>
+
+    <fieldset id="login-section">
+        <legend><b>User Login</b></legend>
+        <p>Enter your username to lock in your predictions.</p>
+        <input type="text" id="username" placeholder="Pragyan or Nischal">
+        <button id="login-btn">Log In</button>
+    </fieldset>
+
+    <br>
+
+    <fieldset id="prediction-section" style="display: none;">
+        <legend><b>Make Your Prediction</b></legend>
+        <table border="1" cellpadding="5" cellspacing="0">
+            <tr bgcolor="#000080" style="color: white;">
+                <th>Team A</th>
+                <th>Score A</th>
+                <th>Score B</th>
+                <th>Team B</th>
+                <th>Action</th>
+            </tr>
+            <tr>
+                <td>Brazil</td>
+                <td><input type="number" id="score-a" min="0" style="width: 40px;"></td>
+                <td><input type="number" id="score-b" min="0" style="width: 40px;"></td>
+                <td>France</td>
+                <td><button id="submit-btn">Lock Prediction</button></td>
+            </tr>
+        </table>
+    </fieldset>
+
+    <br>
+
+    <fieldset>
+        <legend><b>Current Standings</b></legend>
+        <table border="1" cellpadding="5" cellspacing="0" width="300">
+            <tr bgcolor="#000080" style="color: white;">
+                <th>Player</th>
+                <th>Points</th>
+            </tr>
+            <tr>
+                <td>Pragyan</td>
+                <td id="score-pragyan">0</td>
+            </tr>
+            <tr>
+                <td>Nischal</td>
+                <td id="score-nischal">0</td>
+            </tr>
+        </table>
+    </fieldset>
+
+    <script src="app.js"></script>
+</body>
+</html>
