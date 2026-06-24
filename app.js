@@ -24,27 +24,25 @@ try {
 const API_KEY = "090c1fc2e99d4c49b1c4823c5645cc95";
 
 async function fetchLiveMatches() {
-    console.log("Fetching live matches from API...");
+    console.log("Asking our Netlify backend for live matches...");
     try {
-        // 1. Define the real API URL
-        const targetUrl = "https://api.football-data.org/v4/competitions/2021/matches?status=SCHEDULED";
-        
-        // 2. Wrap it in the Developer Proxy (No encoding needed for this one)
-        const proxyUrl = "https://cors-anywhere.herokuapp.com/" + targetUrl;
+        const response = await fetch("/.netlify/functions/getMatches");
 
-        // 3. Fetch through the proxy
-        const response = await fetch(proxyUrl, {
-            headers: { 
-                "X-Auth-Token": API_KEY,
-                "Origin": "http://localhost:8000" // Required by this specific proxy
-            }
-        });
-
-        if (!response.ok) throw new Error(`API rejected the request. Status: ${response.status}`);
+        if (!response.ok) throw new Error("Backend failed to fetch data.");
 
         const data = await response.json();
         
-        // Grab just the first 5 upcoming matches
+        // SAFETY CHECK 1: Did the API return an error instead of a list?
+        if (!data.matches) {
+            throw new Error("API did not return a match list. Check backend logs.");
+        }
+
+        // SAFETY CHECK 2: Are there actually any matches scheduled today?
+        if (data.matches.length === 0) {
+            matchTableBody.innerHTML = `<tr><td colspan="3" style="text-align:center;"><b>No upcoming World Cup matches scheduled right now!</b></td></tr>`;
+            return;
+        }
+        
         const liveMatches = data.matches.slice(0, 5).map(match => ({
             id: `match_${match.id}`,
             teamA: match.homeTeam.shortName || match.homeTeam.name,
@@ -56,7 +54,7 @@ async function fetchLiveMatches() {
 
     } catch (error) {
         console.error("API Error:", error);
-        matchTableBody.innerHTML = `<tr><td colspan="3" style="color:red; text-align:center;"><b>Failed to load live matches. Did you click the unlock button on CORS Anywhere?</b></td></tr>`;
+        matchTableBody.innerHTML = `<tr><td colspan="3" style="color:red; text-align:center;"><b>Failed to load live matches. Check console.</b></td></tr>`;
     }
 }
 
