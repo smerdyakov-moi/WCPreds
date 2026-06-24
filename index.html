@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>World Cup Predictor</title>
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="style.css">
     
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -50,20 +50,15 @@
         <fieldset>
             <legend><b>Make Prediction</b></legend>
             <table border="1" cellpadding="5" cellspacing="0" width="100%">
-                <tr bgcolor="#000080" style="color: white;">
-                    <th>Match</th>
-                    <th>Your Prediction</th>
-                    <th>Action</th>
-                </tr>
-                <tr>
-                    <td><b>Brazil vs France</b></td>
-                    <td>
-                        Brazil: <input type="number" id="pred-brazil" min="0" style="width: 40px;">
-                        - 
-                        France: <input type="number" id="pred-france" min="0" style="width: 40px;">
-                    </td>
-                    <td><button id="lock-match-1">Lock In</button></td>
-                </tr>
+                <thead>
+                    <tr bgcolor="#000080" style="color: white;">
+                        <th>Match</th>
+                        <th>Your Prediction</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="match-table-body">
+                </tbody>
             </table>
         </fieldset>
     </div>

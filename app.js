@@ -1,6 +1,5 @@
 console.log("1. App.js is starting...");
 
-// Your exact Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyARnW-6JxIrV6v6Wn1-aVewAIWh3_NSI48",
   authDomain: "wcpredictor-594ee.firebaseapp.com",
@@ -11,16 +10,22 @@ const firebaseConfig = {
 };
 
 let db;
-
-// Shield Firebase with a Try/Catch
 try {
-    console.log("2. Attempting to initialize Firebase...");
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    console.log("3. Firebase initialized successfully!");
+    console.log("2. Firebase initialized.");
 } catch (error) {
     console.error("FIREBASE CRASHED:", error);
 }
+
+// ---------------------------------------------------------
+// NEW: Fake API Data (We will replace this with a real fetch later)
+// ---------------------------------------------------------
+const fakeAPIData = [
+    { id: "match_01", teamA: "Brazil", teamB: "France", time: "June 30, 15:00" },
+    { id: "match_02", teamA: "Argentina", teamB: "Germany", time: "July 1, 18:00" },
+    { id: "match_03", teamA: "Spain", teamB: "Italy", time: "July 2, 20:00" }
+];
 
 // DOM Elements
 const loginScreen = document.getElementById("login-screen");
@@ -29,144 +34,144 @@ const btnPragyan = document.getElementById("btn-pragyan");
 const btnNischal = document.getElementById("btn-nischal");
 const displayName = document.getElementById("display-name");
 const logoutLink = document.getElementById("logout-link");
-const lockMatch1Btn = document.getElementById("lock-match-1");
+const matchTableBody = document.getElementById("match-table-body");
 
 let currentUser = "";
 
-console.log("4. Attaching button listeners...");
+// ---------------------------------------------------------
+// NEW: The Dynamic Render Engine
+// ---------------------------------------------------------
+function renderMatches() {
+    matchTableBody.innerHTML = ""; // Clear out any old HTML
 
-// Check if user is already saved in session storage on refresh
+    fakeAPIData.forEach((match) => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+            <td><b>${match.teamA} vs ${match.teamB}</b><br><small>${match.time}</small></td>
+            <td>
+                ${match.teamA}: <input type="number" id="pred-A-${match.id}" min="0" style="width: 40px;">
+                - 
+                ${match.teamB}: <input type="number" id="pred-B-${match.id}" min="0" style="width: 40px;">
+            </td>
+            <td><button id="btn-${match.id}">Lock In</button></td>
+        `;
+
+        matchTableBody.appendChild(tr);
+
+        // Attach Database Submit Logic directly to this specific row's button
+        const lockBtn = document.getElementById(`btn-${match.id}`);
+        const inputA = document.getElementById(`pred-A-${match.id}`);
+        const inputB = document.getElementById(`pred-B-${match.id}`);
+
+        lockBtn.addEventListener("click", () => {
+            const scoreA = inputA.value;
+            const scoreB = inputB.value;
+
+            if (scoreA === "" || scoreB === "") {
+                alert("Enter a score for both teams.");
+                return;
+            }
+
+            db.collection("predictions").add({
+                user: currentUser,
+                matchId: match.id,
+                teamA: match.teamA,
+                teamB: match.teamB,
+                teamA_score: parseInt(scoreA),
+                teamB_score: parseInt(scoreB),
+                timestamp: new Date()
+            })
+            .then(() => {
+                alert(`${match.teamA} vs ${match.teamB} locked!`);
+                inputA.disabled = true;
+                inputB.disabled = true;
+                lockBtn.disabled = true;
+                lockBtn.innerText = "Locked";
+            })
+            .catch((error) => console.error("Error saving:", error));
+        });
+    });
+}
+
+// ---------------------------------------------------------
+// Authentication & UI State
+// ---------------------------------------------------------
 window.onload = () => {
+    renderMatches(); // Draw the table immediately when the page loads
+    
     try {
         const savedUser = sessionStorage.getItem("predictorUser");
         if (savedUser) logUserIn(savedUser);
-    } catch (e) {
-        console.error("Session storage is blocked by your browser.", e);
-    }
+    } catch (e) {}
 };
 
-// Login Buttons
-btnPragyan.addEventListener("click", () => {
-    logUserIn("Pragyan");
-});
+btnPragyan.addEventListener("click", () => logUserIn("Pragyan"));
+btnNischal.addEventListener("click", () => logUserIn("Nischal"));
 
-btnNischal.addEventListener("click", () => {
-    logUserIn("Nischal");
-});
-
-// Main Login Function
 function logUserIn(name) {
-    console.log("Logging in as: " + name);
     currentUser = name;
-    
-    try {
-        sessionStorage.setItem("predictorUser", name);
-    } catch (e) {
-        console.warn("Could not save session, but letting you in anyway.");
-    }
+    try { sessionStorage.setItem("predictorUser", name); } catch (e) {}
     
     displayName.innerText = currentUser;
     loginScreen.style.display = "none";
     dashboard.style.display = "block";
 
-    // SMART UI: Check database and load past predictions for this specific user
     loadUserPredictions(currentUser);
 }
 
-// Logout / Switch User Logic
 logoutLink.addEventListener("click", (e) => {
     e.preventDefault();
-    try {
-        sessionStorage.removeItem("predictorUser");
-    } catch (e) {}
+    try { sessionStorage.removeItem("predictorUser"); } catch (e) {}
     currentUser = "";
     dashboard.style.display = "none";
     loginScreen.style.display = "block";
 });
 
-// Check database for existing predictions and lock UI if found
+// ---------------------------------------------------------
+// NEW: Smart Firebase Fetching for ALL matches
+// ---------------------------------------------------------
 function loadUserPredictions(username) {
-    const inputBrazil = document.getElementById("pred-brazil");
-    const inputFrance = document.getElementById("pred-france");
-    const lockBtn = document.getElementById("lock-match-1");
+    if (!db) return;
 
-    // 1. WIPE THE BOARD CLEAN (Unlock and Empty)
-    inputBrazil.value = "";
-    inputFrance.value = "";
-    inputBrazil.disabled = false;
-    inputFrance.disabled = false;
-    lockBtn.disabled = false;
-    lockBtn.innerText = "Lock In";
+    // 1. Wipe the board clean for all matches
+    fakeAPIData.forEach((match) => {
+        const inputA = document.getElementById(`pred-A-${match.id}`);
+        const inputB = document.getElementById(`pred-B-${match.id}`);
+        const lockBtn = document.getElementById(`btn-${match.id}`);
+        
+        if (inputA && inputB && lockBtn) {
+            inputA.value = "";
+            inputB.value = "";
+            inputA.disabled = false;
+            inputB.disabled = false;
+            lockBtn.disabled = false;
+            lockBtn.innerText = "Lock In";
+        }
+    });
 
-    if (!db) return; // If Firebase failed, stop here
-
-    // 2. Ask Firebase if this user already predicted this match
+    // 2. Fetch everything this user has ever predicted
     db.collection("predictions")
         .where("user", "==", username)
-        .where("match", "==", "Brazil_vs_France")
         .get()
         .then((querySnapshot) => {
-            if (!querySnapshot.empty) {
-                // The user HAS predicted! Fill in their numbers and lock it.
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    
-                    inputBrazil.value = data.teamA_score;
-                    inputFrance.value = data.teamB_score;
-                    
-                    inputBrazil.disabled = true;
-                    inputFrance.disabled = true;
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                
+                // Find the exact row for this prediction using the saved matchId
+                const inputA = document.getElementById(`pred-A-${data.matchId}`);
+                const inputB = document.getElementById(`pred-B-${data.matchId}`);
+                const lockBtn = document.getElementById(`btn-${data.matchId}`);
+
+                if (inputA && inputB && lockBtn) {
+                    inputA.value = data.teamA_score;
+                    inputB.value = data.teamB_score;
+                    inputA.disabled = true;
+                    inputB.disabled = true;
                     lockBtn.disabled = true;
                     lockBtn.innerText = "Locked";
-                });
-            }
+                }
+            });
         })
-        .catch((error) => {
-            console.error("Error fetching predictions: ", error);
-        });
+        .catch((error) => console.error("Error fetching predictions: ", error));
 }
-
-// Database Submit Logic
-lockMatch1Btn.addEventListener("click", function() {
-    const inputBrazil = document.getElementById("pred-brazil");
-    const inputFrance = document.getElementById("pred-france");
-    
-    const scoreBrazil = inputBrazil.value;
-    const scoreFrance = inputFrance.value;
-
-    if (scoreBrazil === "" || scoreFrance === "") {
-        alert("Enter a score for both teams.");
-        return;
-    }
-
-    if (!db) {
-        alert("Cannot save: Firebase failed to load earlier. Check console.");
-        return;
-    }
-
-    // Save to Firestore
-    db.collection("predictions").add({
-        user: currentUser,
-        match: "Brazil_vs_France",
-        teamA_score: parseInt(scoreBrazil),
-        teamB_score: parseInt(scoreFrance),
-        timestamp: new Date()
-    })
-    .then(() => {
-        alert("Prediction locked!");
-        
-        // Disable the boxes so they can't be changed, but leave numbers visible
-        inputBrazil.disabled = true;
-        inputFrance.disabled = true;
-        
-        // Disable the button and change text
-        lockMatch1Btn.disabled = true;
-        lockMatch1Btn.innerText = "Locked";
-    })
-    .catch((error) => {
-        console.error("Error adding document: ", error);
-        alert("Failed to save. Check console.");
-    });
-});
-
-console.log("5. App.js loaded completely.");
