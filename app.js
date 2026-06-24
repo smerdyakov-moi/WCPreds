@@ -1,5 +1,3 @@
-console.log("1. App.js is starting...");
-
 const firebaseConfig = {
   apiKey: "AIzaSyARnW-6JxIrV6v6Wn1-aVewAIWh3_NSI48",
   authDomain: "wcpredictor-594ee.firebaseapp.com",
@@ -9,242 +7,121 @@ const firebaseConfig = {
   appId: "1:34828140064:web:224330790641e627f9c645"
 };
 
-let db;
-try {
-    firebase.initializeApp(firebaseConfig);
-    db = firebase.firestore();
-    console.log("2. Firebase initialized.");
-} catch (error) {
-    console.error("FIREBASE CRASHED:", error);
-}
-
-// ==========================================
-// NEW: LIVE API FETCHING ENGINE
-// ==========================================
-const API_KEY = "090c1fc2e99d4c49b1c4823c5645cc95";
-
-async function fetchLiveMatches() {
-    console.log("Asking our Netlify backend for live matches...");
-    try {
-        const response = await fetch("/.netlify/functions/getMatches");
-
-        if (!response.ok) throw new Error("Backend failed to fetch data.");
-
-        const data = await response.json();
-        
-        // SAFETY CHECK 1: Did the API return an error instead of a list?
-        if (!data.matches) {
-            throw new Error("API did not return a match list. Check backend logs.");
-        }
-
-        // SAFETY CHECK 2: Are there actually any matches scheduled today?
-        if (data.matches.length === 0) {
-            matchTableBody.innerHTML = `<tr><td colspan="3" style="text-align:center;"><b>No upcoming World Cup matches scheduled right now!</b></td></tr>`;
-            return;
-        }
-        
-        const liveMatches = data.matches.slice(0, 5).map(match => ({
-            id: `match_${match.id}`,
-            teamA: match.homeTeam.shortName || match.homeTeam.name,
-            teamB: match.awayTeam.shortName || match.awayTeam.name,
-            time: new Date(match.utcDate).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'})
-        }));
-
-        renderMatches(liveMatches);
-
-    } catch (error) {
-        console.error("API Error:", error);
-        matchTableBody.innerHTML = `<tr><td colspan="3" style="color:red; text-align:center;"><b>Failed to load live matches. Check console.</b></td></tr>`;
-    }
-}
-
-// FAKE FINAL RESULTS (You will update this later to fetch FINISHED matches)
-const fakeFinalResults = {
-    "match_01": { teamA_score: 3, teamB_score: 1 } 
-};
-
-const loginScreen = document.getElementById("login-screen");
-const dashboard = document.getElementById("dashboard");
-const btnPragyan = document.getElementById("btn-pragyan");
-const btnNischal = document.getElementById("btn-nischal");
-const displayName = document.getElementById("display-name");
-const logoutLink = document.getElementById("logout-link");
-const matchTableBody = document.getElementById("match-table-body");
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 let currentUser = "";
-let currentMatchData = []; // Store the matches globally so other functions can see them
+let allMatches = [];
 
-// Draw Matches Dynamically based on API Data
-function renderMatches(matchData) {
-    currentMatchData = matchData;
-    matchTableBody.innerHTML = "";
-    
-    matchData.forEach((match) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td><b>${match.teamA} vs ${match.teamB}</b><br><small>${match.time}</small></td>
-            <td>
-                ${match.teamA}: <input type="number" id="pred-A-${match.id}" min="0" style="width: 40px;">
-                - 
-                ${match.teamB}: <input type="number" id="pred-B-${match.id}" min="0" style="width: 40px;">
-            </td>
-            <td><button id="btn-${match.id}">Lock In</button></td>
-        `;
-        matchTableBody.appendChild(tr);
-
-        const lockBtn = document.getElementById(`btn-${match.id}`);
-        const inputA = document.getElementById(`pred-A-${match.id}`);
-        const inputB = document.getElementById(`pred-B-${match.id}`);
-
-        lockBtn.addEventListener("click", () => {
-            const scoreA = inputA.value;
-            const scoreB = inputB.value;
-            if (scoreA === "" || scoreB === "") return alert("Enter a score for both teams.");
-
-            db.collection("predictions").add({
-                user: currentUser,
-                matchId: match.id,
-                teamA: match.teamA,
-                teamB: match.teamB,
-                teamA_score: parseInt(scoreA),
-                teamB_score: parseInt(scoreB),
-                timestamp: new Date()
-            }).then(() => {
-                alert("Locked!");
-                inputA.disabled = true; inputB.disabled = true;
-                lockBtn.disabled = true; lockBtn.innerText = "Locked";
-                calculateLeaderboard(); 
-            });
-        });
+// 1. APP INITIALIZATION
+window.onload = async () => {
+    db.collection("scores").doc("current_standings").onSnapshot((doc) => {
+        if (doc.exists) {
+            document.getElementById("points-pragyan").innerText = doc.data().Pragyan || 0;
+            document.getElementById("points-nischal").innerText = doc.data().Nischal || 0;
+        }
     });
-
-    // If someone is already logged in when the API finishes loading, load their locked numbers
-    if (currentUser !== "") {
-        loadUserPredictions(currentUser);
-    }
-}
-
-// Authentication
-window.onload = () => {
-    fetchLiveMatches(); // Fire the API fetch immediately when page opens
 
     try {
-        const savedUser = sessionStorage.getItem("predictorUser");
-        if (savedUser) {
-            currentUser = savedUser;
-            displayName.innerText = currentUser;
-            loginScreen.style.display = "none";
-            dashboard.style.display = "block";
+        const response = await fetch("/.netlify/functions/getMatches");
+        if (!response.ok) throw new Error("Backend response failed");
+        
+        const data = await response.json();
+        if (data.matches) {
+            allMatches = data.matches;
+            renderMatches();
+            await updateLeaderboard();
         }
-    } catch (e) {}
-    
-    calculateLeaderboard(); 
+    } catch (err) {
+        console.error("Critical Load Error:", err);
+    }
 };
 
-btnPragyan.addEventListener("click", () => logUserIn("Pragyan"));
-btnNischal.addEventListener("click", () => logUserIn("Nischal"));
+// 2. RENDER THE TABLE
+function renderMatches() {
+    const tableBody = document.getElementById("match-table-body");
+    tableBody.innerHTML = "";
+    
+    // Status filter updated to catch all upcoming match states
+    allMatches.filter(m => ["SCHEDULED", "TIMED", "POSTPONED"].includes(m.status)).slice(0, 5).forEach(m => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td><b>${m.homeTeam.shortName} vs ${m.awayTeam.shortName}</b></td>
+            <td><input type="number" id="A-${m.id}" style="width:40px;"> - <input type="number" id="B-${m.id}" style="width:40px;"></td>
+            <td><button id="btn-${m.id}">Lock In</button></td>`;
+        tableBody.appendChild(tr);
+        document.getElementById(`btn-${m.id}`).onclick = () => savePrediction(m);
+    });
+}
 
+// 3. SAVE PREDICTION
+async function savePrediction(m) {
+    const sA = document.getElementById(`A-${m.id}`).value;
+    const sB = document.getElementById(`B-${m.id}`).value;
+    
+    if (!sA || !sB) return alert("Enter scores!");
+
+    // Storing matchId as a string to match the API ID format
+    await db.collection("predictions").add({
+        user: currentUser, 
+        matchId: String(m.id), 
+        homeScore: parseInt(sA), 
+        awayScore: parseInt(sB),
+        timestamp: new Date()
+    });
+    
+    alert("Locked! Updating leaderboard...");
+    await updateLeaderboard();
+}
+
+// 4. THE LEADERBOARD ENGINE (Total Distance Logic)
+async function updateLeaderboard() {
+    const predictionsSnap = await db.collection("predictions").get();
+    
+    let matchGroups = {};
+    predictionsSnap.forEach(doc => {
+        const p = doc.data();
+        if (!matchGroups[p.matchId]) matchGroups[p.matchId] = [];
+        matchGroups[p.matchId].push(p);
+    });
+
+    for (const matchId in matchGroups) {
+        const realMatch = allMatches.find(m => String(m.id) === String(matchId) && m.status === "FINISHED");
+        if (!realMatch) continue;
+
+        const finalA = realMatch.score.fullTime.home;
+        const finalB = realMatch.score.fullTime.away;
+
+        matchGroups[matchId].forEach(p => {
+            if (p.homeScore === finalA && p.awayScore === finalB) {
+                points[p.user] += 5;
+            } else if (Math.sign(p.homeScore - p.awayScore) === Math.sign(finalA - finalB)) {
+                points[p.user] += 2;
+            }
+        });
+
+        if (matchGroups[matchId].length > 1) {
+            const p1 = matchGroups[matchId][0];
+            const p2 = matchGroups[matchId][1];
+            
+            // |Ax - Px| + |Ay - Py| logic
+            const dist1 = Math.abs(finalA - p1.homeScore) + Math.abs(finalB - p1.awayScore);
+            const dist2 = Math.abs(finalA - p2.homeScore) + Math.abs(finalB - p2.awayScore);
+
+            if (dist1 < dist2) points[p1.user] += 1;
+            else if (dist2 < dist1) points[p2.user] += 1;
+        }
+    }
+
+    await db.collection("scores").doc("current_standings").set(points);
+}
+
+// 5. LOGIN LOGIC
 function logUserIn(name) {
     currentUser = name;
-    try { sessionStorage.setItem("predictorUser", name); } catch (e) {}
-    displayName.innerText = currentUser;
-    loginScreen.style.display = "none";
-    dashboard.style.display = "block";
-    loadUserPredictions(currentUser);
+    document.getElementById("display-name").innerText = name;
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
 }
-
-logoutLink.addEventListener("click", (e) => {
-    e.preventDefault();
-    try { sessionStorage.removeItem("predictorUser"); } catch (e) {}
-    currentUser = "";
-    dashboard.style.display = "none";
-    loginScreen.style.display = "block";
-});
-
-// Load Past Predictions
-function loadUserPredictions(username) {
-    if (!db) return;
-    
-    // Wipe board clean
-    currentMatchData.forEach((match) => {
-        const inputA = document.getElementById(`pred-A-${match.id}`);
-        const inputB = document.getElementById(`pred-B-${match.id}`);
-        const lockBtn = document.getElementById(`btn-${match.id}`);
-        if (inputA && inputB && lockBtn) {
-            inputA.value = ""; inputB.value = "";
-            inputA.disabled = false; inputB.disabled = false;
-            lockBtn.disabled = false; lockBtn.innerText = "Lock In";
-        }
-    });
-
-    // Check database
-    db.collection("predictions").where("user", "==", username).get().then((snapshot) => {
-        snapshot.forEach((doc) => {
-            const data = doc.data();
-            const inputA = document.getElementById(`pred-A-${data.matchId}`);
-            const inputB = document.getElementById(`pred-B-${data.matchId}`);
-            const lockBtn = document.getElementById(`btn-${data.matchId}`);
-            if (inputA && inputB && lockBtn) {
-                inputA.value = data.teamA_score; inputB.value = data.teamB_score;
-                inputA.disabled = true; inputB.disabled = true;
-                lockBtn.disabled = true; lockBtn.innerText = "Locked";
-            }
-        });
-    });
-}
-
-// Math Engine
-function calculateLeaderboard() {
-    if (!db) return;
-
-    db.collection("predictions").get().then((snapshot) => {
-        let points = { "Pragyan": 0, "Nischal": 0 };
-        let allPreds = {};
-
-        snapshot.forEach((doc) => {
-            let data = doc.data();
-            if (!allPreds[data.matchId]) allPreds[data.matchId] = {};
-            allPreds[data.matchId][data.user] = data;
-        });
-
-        for (const matchId in fakeFinalResults) {
-            const realResult = fakeFinalResults[matchId];
-            const matchData = allPreds[matchId];
-            if (!matchData) continue; 
-
-            let pPred = matchData["Pragyan"];
-            let nPred = matchData["Nischal"];
-            let pDiff = null; let nDiff = null;
-
-            if (pPred) {
-                if (pPred.teamA_score === realResult.teamA_score && pPred.teamB_score === realResult.teamB_score) {
-                    points["Pragyan"] += 5;
-                } else {
-                    let pWinner = Math.sign(pPred.teamA_score - pPred.teamB_score);
-                    let rWinner = Math.sign(realResult.teamA_score - realResult.teamB_score);
-                    if (pWinner === rWinner) points["Pragyan"] += 2;
-                    pDiff = Math.abs(pPred.teamA_score - realResult.teamA_score) + Math.abs(pPred.teamB_score - realResult.teamB_score);
-                }
-            }
-
-            if (nPred) {
-                if (nPred.teamA_score === realResult.teamA_score && nPred.teamB_score === realResult.teamB_score) {
-                    points["Nischal"] += 5;
-                } else {
-                    let nWinner = Math.sign(nPred.teamA_score - nPred.teamB_score);
-                    let rWinner = Math.sign(realResult.teamA_score - realResult.teamB_score);
-                    if (nWinner === rWinner) points["Nischal"] += 2;
-                    nDiff = Math.abs(nPred.teamA_score - realResult.teamA_score) + Math.abs(nPred.teamB_score - realResult.teamB_score);
-                }
-            }
-
-            if (pDiff !== null && nDiff !== null) {
-                if (pDiff < nDiff) points["Pragyan"] += 1;
-                else if (nDiff < pDiff) points["Nischal"] += 1;
-            }
-        }
-
-        document.getElementById("points-pragyan").innerText = points["Pragyan"];
-        document.getElementById("points-nischal").innerText = points["Nischal"];
-    });
-}
+document.getElementById("btn-pragyan").onclick = () => logUserIn("Pragyan");
+document.getElementById("btn-nischal").onclick = () => logUserIn("Nischal");
+document.getElementById("logout-link").onclick = (e) => { e.preventDefault(); location.reload(); };

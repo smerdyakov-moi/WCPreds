@@ -1,8 +1,6 @@
 exports.handler = async function(event, context) {
     const API_KEY = process.env.FOOTBALL_API_KEY; 
-    
-    // "WC" is the official API code for the FIFA World Cup
-    const targetUrl = "https://api.football-data.org/v4/competitions/WC/matches?status=SCHEDULED";
+    const targetUrl = "https://api.football-data.org/v4/competitions/WC/matches";
 
     try {
         const response = await fetch(targetUrl, {
@@ -10,16 +8,18 @@ exports.handler = async function(event, context) {
         });
 
         if (!response.ok) {
-            return { statusCode: response.status, body: JSON.stringify({ error: `API Rejected: ${response.status}` }) };
+            return { 
+                statusCode: response.status, 
+                body: JSON.stringify({ error: `API Rejected: ${response.status}` }) 
+            };
         }
 
         const data = await response.json();
-
         return {
             statusCode: 200,
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         };
-
     } catch (error) {
         return {
             statusCode: 500,
