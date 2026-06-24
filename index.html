@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>World Cup Predictor</title>
     <link rel="stylesheet" href="style.css">
-    
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 </head>
@@ -18,49 +17,45 @@
     <center id="login-screen">
         <fieldset style="width: 300px; margin-top: 50px;">
             <legend><b>Identify Yourself</b></legend>
-            <p>Who is predicting?</p>
-            <button id="btn-pragyan" style="width: 100px; height: 30px; margin-right: 10px;">Pragyan</button>
-            <button id="btn-nischal" style="width: 100px; height: 30px;">Nischal</button>
+            <button id="btn-pragyan">Pragyan</button>
+            <button id="btn-nischal">Nischal</button>
         </fieldset>
     </center>
 
-    <div id="dashboard" style="display: none;">
+    <div id="dashboard" style="display: none; padding: 20px;">
         <p><b>Logged in as:</b> <span id="display-name"></span> | <a href="#" id="logout-link">Switch User</a></p>
 
-        <fieldset>
-            <legend><b>Leaderboard</b></legend>
-            <table border="1" cellpadding="5" cellspacing="0" width="100%">
-                <tr bgcolor="#000080" style="color: white;">
-                    <th>Player</th>
-                    <th>Points</th>
-                </tr>
-                <tr>
-                    <td>Pragyan</td>
-                    <td id="points-pragyan">0</td>
-                </tr>
-                <tr>
-                    <td>Nischal</td>
-                    <td id="points-nischal">0</td>
-                </tr>
-            </table>
-        </fieldset>
+        <div class="dashboard-container">
+            <div class="column">
+                <fieldset>
+                    <legend><b>Leaderboard</b></legend>
+                    <table>
+                        <tr bgcolor="#000080" style="color: white;"><th>Player</th><th>Points</th></tr>
+                        <tr><td>Pragyan</td><td id="points-pragyan">0</td></tr>
+                        <tr><td>Nischal</td><td id="points-nischal">0</td></tr>
+                    </table>
+                </fieldset>
+                <fieldset>
+                    <legend><b>Make Prediction</b></legend>
+                    <table>
+                        <thead><tr bgcolor="#000080" style="color: white;"><th>Match</th><th>Prediction</th><th>Action</th></tr></thead>
+                        <tbody id="match-table-body"></tbody>
+                    </table>
+                </fieldset>
+            </div>
 
-        <br>
-
-        <fieldset>
-            <legend><b>Make Prediction</b></legend>
-            <table border="1" cellpadding="5" cellspacing="0" width="100%">
-                <thead>
-                    <tr bgcolor="#000080" style="color: white;">
-                        <th>Match</th>
-                        <th>Your Prediction</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody id="match-table-body">
-                </tbody>
-            </table>
-        </fieldset>
+            <div class="column">
+                <fieldset>
+                    <legend><b>Match History</b></legend>
+                    <table>
+                        <tr bgcolor="#000080" style="color: white;">
+                            <th>Match</th><th>Score</th><th>Nischal (Pred/Pts)</th><th>Pragyan (Pred/Pts)</th>
+                        </tr>
+                        <tbody id="history-table-body"></tbody>
+                    </table>
+                </fieldset>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>

@@ -13,9 +13,7 @@ const db = firebase.firestore();
 let currentUser = "";
 let allMatches = [];
 
-// 1. APP INITIALIZATION
 window.onload = async () => {
-    // Show loading state to prevent 0-0 flicker
     document.getElementById("points-pragyan").innerText = "...";
     document.getElementById("points-nischal").innerText = "...";
 
@@ -23,32 +21,35 @@ window.onload = async () => {
         if (doc.exists) {
             document.getElementById("points-pragyan").innerText = doc.data().Pragyan || 0;
             document.getElementById("points-nischal").innerText = doc.data().Nischal || 0;
-        } else {
-            document.getElementById("points-pragyan").innerText = "0";
-            document.getElementById("points-nischal").innerText = "0";
         }
+    });
+
+    db.collection("match_history").orderBy("timestamp", "desc").onSnapshot(snap => {
+        const historyBody = document.getElementById("history-table-body");
+        historyBody.innerHTML = "";
+        snap.forEach(doc => {
+            const h = doc.data();
+            historyBody.innerHTML += `<tr>
+                <td>${h.match}</td><td><b>${h.result}</b></td>
+                <td>${h.Nischal_pred || '-'} / ${h.Nischal_points || 0}</td>
+                <td>${h.Pragyan_pred || '-'} / ${h.Pragyan_points || 0}</td>
+            </tr>`;
+        });
     });
 
     try {
         const response = await fetch("/.netlify/functions/getMatches");
-        if (!response.ok) throw new Error("Backend response failed");
-        
         const data = await response.json();
         if (data.matches) {
             allMatches = data.matches;
             renderMatches();
             await updateLeaderboard();
         }
-    } catch (err) {
-        console.error("Critical Load Error:", err);
-    }
+    } catch (err) { console.error(err); }
 };
 
-// 2. RENDER THE TABLE
 function renderMatches() {
     const tableBody = document.getElementById("match-table-body");
-    tableBody.innerHTML = "";
-    
     allMatches.filter(m => ["SCHEDULED", "TIMED", "POSTPONED"].includes(m.status)).slice(0, 5).forEach(m => {
         const tr = document.createElement("tr");
         tr.innerHTML = `<td><b>${m.homeTeam.shortName} vs ${m.awayTeam.shortName}</b></td>
@@ -59,32 +60,21 @@ function renderMatches() {
     });
 }
 
-// 3. SAVE PREDICTION
 async function savePrediction(m) {
     const sA = document.getElementById(`A-${m.id}`).value;
     const sB = document.getElementById(`B-${m.id}`).value;
-    
     if (!sA || !sB) return alert("Enter scores!");
-
     await db.collection("predictions").add({
-        user: currentUser, 
-        matchId: String(m.id), 
-        homeScore: parseInt(sA), 
-        awayScore: parseInt(sB),
-        timestamp: new Date()
+        user: currentUser, matchId: String(m.id), homeScore: parseInt(sA), awayScore: parseInt(sB), timestamp: new Date()
     });
-    
-    alert("Locked! Updating leaderboard...");
+    alert("Locked!");
     await updateLeaderboard();
 }
 
-// 4. THE LEADERBOARD ENGINE
 async function updateLeaderboard() {
-    // 1. Get CURRENT score from DB first
     const scoreDoc = await db.collection("scores").doc("current_standings").get();
     let points = scoreDoc.exists ? scoreDoc.data() : { "Pragyan": 0, "Nischal": 0 };
     
-    // 2. Fetch new predictions
     const predictionsSnap = await db.collection("predictions").get();
     let matchGroups = {};
     predictionsSnap.forEach(doc => {
@@ -95,38 +85,34 @@ async function updateLeaderboard() {
 
     for (const matchId in matchGroups) {
         const realMatch = allMatches.find(m => String(m.id) === String(matchId) && m.status === "FINISHED");
-        if (!realMatch) continue;
+        if (!realMatch || (await db.collection("match_history").doc(matchId).get()).exists) continue;
 
         const finalA = realMatch.score.fullTime.home;
         const finalB = realMatch.score.fullTime.away;
+        let historyData = { match: realMatch.homeTeam.shortName + " vs " + realMatch.awayTeam.shortName, result: finalA + "-" + finalB, timestamp: new Date() };
 
         matchGroups[matchId].forEach(p => {
+            historyData[p.user + "_pred"] = p.homeScore + "-" + p.awayScore;
             if (!points.hasOwnProperty(p.user)) points[p.user] = 0;
-
-            if (p.homeScore === finalA && p.awayScore === finalB) {
-                points[p.user] += 5;
-            } else if (Math.sign(p.homeScore - p.awayScore) === Math.sign(finalA - finalB)) {
-                points[p.user] += 2;
-            }
+            let earned = 0;
+            if (p.homeScore === finalA && p.awayScore === finalB) earned = 5;
+            else if (Math.sign(p.homeScore - p.awayScore) === Math.sign(finalA - finalB)) earned = 2;
+            points[p.user] += earned;
+            historyData[p.user + "_points"] = earned;
         });
 
-        // +1 Closeness Logic
         if (matchGroups[matchId].length > 1) {
-            const p1 = matchGroups[matchId][0];
-            const p2 = matchGroups[matchId][1];
-            const dist1 = Math.abs(finalA - p1.homeScore) + Math.abs(finalB - p1.awayScore);
-            const dist2 = Math.abs(finalA - p2.homeScore) + Math.abs(finalB - p2.awayScore);
-
-            if (dist1 < dist2) points[p1.user] += 1;
-            else if (dist2 < dist1) points[p2.user] += 1;
+            const p1 = matchGroups[matchId][0], p2 = matchGroups[matchId][1];
+            const d1 = Math.abs(finalA - p1.homeScore) + Math.abs(finalB - p1.awayScore);
+            const d2 = Math.abs(finalA - p2.homeScore) + Math.abs(finalB - p2.awayScore);
+            if (d1 < d2) { points[p1.user] += 1; historyData[p1.user + "_points"] += 1; }
+            else if (d2 < d1) { points[p2.user] += 1; historyData[p2.user + "_points"] += 1; }
         }
+        await db.collection("match_history").doc(matchId).set(historyData);
     }
-
-    // 3. Save the updated points back
     await db.collection("scores").doc("current_standings").set(points);
 }
 
-// 5. LOGIN LOGIC
 function logUserIn(name) {
     currentUser = name;
     document.getElementById("display-name").innerText = name;
