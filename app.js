@@ -59,19 +59,24 @@ async function renderMatches() {
     const tableBody = document.getElementById("match-table-body");
     tableBody.innerHTML = "";
     
-    // Fetch all existing predictions to see what's already locked
     const snap = await db.collection("predictions").where("user", "==", currentUser).get();
-    const existingMatchIds = new Set();
-    snap.forEach(doc => existingMatchIds.add(doc.data().matchId));
+    const userPredictions = new Map();
+    snap.forEach(doc => {
+        const p = doc.data();
+        userPredictions.set(p.matchId, p);
+    });
 
     allMatches.filter(m => ["SCHEDULED", "TIMED", "POSTPONED"].includes(m.status)).slice(0, 5).forEach(m => {
-        const isLocked = existingMatchIds.has(String(m.id));
+        const p = userPredictions.get(String(m.id));
+        const isLocked = !!p;
         const tr = document.createElement("tr");
         
         tr.innerHTML = `<td><b>${m.homeTeam.shortName} vs ${m.awayTeam.shortName}</b></td>
             <td>
-                <input type="number" id="A-${m.id}" style="width:40px;" ${isLocked ? 'disabled' : ''}> - 
-                <input type="number" id="B-${m.id}" style="width:40px;" ${isLocked ? 'disabled' : ''}>
+                ${isLocked ? 
+                    `<b>${p.homeScore} - ${p.awayScore}</b>` : 
+                    `<input type="number" id="A-${m.id}" style="width:40px;"> - <input type="number" id="B-${m.id}" style="width:40px;">`
+                }
             </td>
             <td>
                 <button id="btn-${m.id}" ${isLocked ? 'disabled style="background-color: #808080; cursor: not-allowed;"' : ''}>
