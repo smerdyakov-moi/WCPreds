@@ -17,6 +17,11 @@ window.onload = async () => {
     document.getElementById("points-pragyan").innerText = "...";
     document.getElementById("points-nischal").innerText = "...";
 
+    const savedUser = localStorage.getItem("wcUser");
+    if (savedUser) {
+        logUserIn(savedUser);
+    }
+
     db.collection("scores").doc("current_standings").onSnapshot((doc) => {
         if (doc.exists) {
             document.getElementById("points-pragyan").innerText = doc.data().Pragyan || 0;
@@ -42,21 +47,42 @@ window.onload = async () => {
         const data = await response.json();
         if (data.matches) {
             allMatches = data.matches;
-            renderMatches();
+            if (currentUser) {
+                await renderMatches();
+            }
             await updateLeaderboard();
         }
     } catch (err) { console.error(err); }
 };
 
-function renderMatches() {
+async function renderMatches() {
     const tableBody = document.getElementById("match-table-body");
+    tableBody.innerHTML = "";
+    
+    // Fetch all existing predictions to see what's already locked
+    const snap = await db.collection("predictions").where("user", "==", currentUser).get();
+    const existingMatchIds = new Set();
+    snap.forEach(doc => existingMatchIds.add(doc.data().matchId));
+
     allMatches.filter(m => ["SCHEDULED", "TIMED", "POSTPONED"].includes(m.status)).slice(0, 5).forEach(m => {
+        const isLocked = existingMatchIds.has(String(m.id));
         const tr = document.createElement("tr");
+        
         tr.innerHTML = `<td><b>${m.homeTeam.shortName} vs ${m.awayTeam.shortName}</b></td>
-            <td><input type="number" id="A-${m.id}" style="width:40px;"> - <input type="number" id="B-${m.id}" style="width:40px;"></td>
-            <td><button id="btn-${m.id}">Lock In</button></td>`;
+            <td>
+                <input type="number" id="A-${m.id}" style="width:40px;" ${isLocked ? 'disabled' : ''}> - 
+                <input type="number" id="B-${m.id}" style="width:40px;" ${isLocked ? 'disabled' : ''}>
+            </td>
+            <td>
+                <button id="btn-${m.id}" ${isLocked ? 'disabled style="background-color: #808080; cursor: not-allowed;"' : ''}>
+                    ${isLocked ? 'Locked' : 'Lock In'}
+                </button>
+            </td>`;
         tableBody.appendChild(tr);
-        document.getElementById(`btn-${m.id}`).onclick = () => savePrediction(m);
+        
+        if (!isLocked) {
+            document.getElementById(`btn-${m.id}`).onclick = () => savePrediction(m);
+        }
     });
 }
 
@@ -64,10 +90,19 @@ async function savePrediction(m) {
     const sA = document.getElementById(`A-${m.id}`).value;
     const sB = document.getElementById(`B-${m.id}`).value;
     if (!sA || !sB) return alert("Enter scores!");
+    
     await db.collection("predictions").add({
-        user: currentUser, matchId: String(m.id), homeScore: parseInt(sA), awayScore: parseInt(sB), timestamp: new Date()
+        user: currentUser, 
+        matchId: String(m.id), 
+        homeScore: parseInt(sA), 
+        awayScore: parseInt(sB),
+        timestamp: new Date()
     });
+    
     alert("Locked!");
+    
+    // RE-RUN THIS TO GREY OUT THE BUTTONS IMMEDIATELY
+    await renderMatches(); 
     await updateLeaderboard();
 }
 
@@ -115,10 +150,14 @@ async function updateLeaderboard() {
 
 function logUserIn(name) {
     currentUser = name;
+    localStorage.setItem("wcUser", name);
     document.getElementById("display-name").innerText = name;
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("dashboard").style.display = "block";
+    renderMatches(); 
 }
+
+
 document.getElementById("btn-pragyan").onclick = () => logUserIn("Pragyan");
 document.getElementById("btn-nischal").onclick = () => logUserIn("Nischal");
-document.getElementById("logout-link").onclick = (e) => { e.preventDefault(); location.reload(); };
+document.getElementById("logout-link").onclick = (e) => { e.preventDefault(); localStorage.removeItem("wcUser"); location.reload(); };

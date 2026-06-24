@@ -15,9 +15,13 @@ exports.handler = async function(event, context) {
         }
 
         const data = await response.json();
+        
         return {
             statusCode: 200,
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+                "Content-Type": "application/json",
+                "Cache-Control": "public, max-age=3600" 
+            },
             body: JSON.stringify(data)
         };
     } catch (error) {
