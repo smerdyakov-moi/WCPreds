@@ -1,5 +1,9 @@
 body {
     background-color: #C0C0C0;
+    background-image: url('trophy.jpg');
+    background-size: cover;                  
+    background-attachment: fixed;            
+    background-position: center;             
     font-family: "Times New Roman", Times, serif;
     color: #000000;
     margin: 20px;
@@ -51,4 +55,10 @@ input {
 }
 .column {
     flex: 1;
+}
+.scroll-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 2px inset #E0E0E0;
+    background-color: #FFFFFF;
 }
