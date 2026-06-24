@@ -1,5 +1,6 @@
 console.log("1. App.js is starting...");
 
+// Your exact Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyARnW-6JxIrV6v6Wn1-aVewAIWh3_NSI48",
   authDomain: "wcpredictor-594ee.firebaseapp.com",
@@ -34,7 +35,7 @@ let currentUser = "";
 
 console.log("4. Attaching button listeners...");
 
-// Login Logic
+// Check if user is already saved in session storage on refresh
 window.onload = () => {
     try {
         const savedUser = sessionStorage.getItem("predictorUser");
@@ -44,16 +45,16 @@ window.onload = () => {
     }
 };
 
+// Login Buttons
 btnPragyan.addEventListener("click", () => {
-    console.log("Pragyan button clicked!");
     logUserIn("Pragyan");
 });
 
 btnNischal.addEventListener("click", () => {
-    console.log("Nischal button clicked!");
     logUserIn("Nischal");
 });
 
+// Main Login Function
 function logUserIn(name) {
     console.log("Logging in as: " + name);
     currentUser = name;
@@ -67,8 +68,12 @@ function logUserIn(name) {
     displayName.innerText = currentUser;
     loginScreen.style.display = "none";
     dashboard.style.display = "block";
+
+    // SMART UI: Check database and load past predictions for this specific user
+    loadUserPredictions(currentUser);
 }
 
+// Logout / Switch User Logic
 logoutLink.addEventListener("click", (e) => {
     e.preventDefault();
     try {
@@ -79,10 +84,55 @@ logoutLink.addEventListener("click", (e) => {
     loginScreen.style.display = "block";
 });
 
+// Check database for existing predictions and lock UI if found
+function loadUserPredictions(username) {
+    const inputBrazil = document.getElementById("pred-brazil");
+    const inputFrance = document.getElementById("pred-france");
+    const lockBtn = document.getElementById("lock-match-1");
+
+    // 1. WIPE THE BOARD CLEAN (Unlock and Empty)
+    inputBrazil.value = "";
+    inputFrance.value = "";
+    inputBrazil.disabled = false;
+    inputFrance.disabled = false;
+    lockBtn.disabled = false;
+    lockBtn.innerText = "Lock In";
+
+    if (!db) return; // If Firebase failed, stop here
+
+    // 2. Ask Firebase if this user already predicted this match
+    db.collection("predictions")
+        .where("user", "==", username)
+        .where("match", "==", "Brazil_vs_France")
+        .get()
+        .then((querySnapshot) => {
+            if (!querySnapshot.empty) {
+                // The user HAS predicted! Fill in their numbers and lock it.
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    
+                    inputBrazil.value = data.teamA_score;
+                    inputFrance.value = data.teamB_score;
+                    
+                    inputBrazil.disabled = true;
+                    inputFrance.disabled = true;
+                    lockBtn.disabled = true;
+                    lockBtn.innerText = "Locked";
+                });
+            }
+        })
+        .catch((error) => {
+            console.error("Error fetching predictions: ", error);
+        });
+}
+
 // Database Submit Logic
 lockMatch1Btn.addEventListener("click", function() {
-    const scoreBrazil = document.getElementById("pred-brazil").value;
-    const scoreFrance = document.getElementById("pred-france").value;
+    const inputBrazil = document.getElementById("pred-brazil");
+    const inputFrance = document.getElementById("pred-france");
+    
+    const scoreBrazil = inputBrazil.value;
+    const scoreFrance = inputFrance.value;
 
     if (scoreBrazil === "" || scoreFrance === "") {
         alert("Enter a score for both teams.");
@@ -94,6 +144,7 @@ lockMatch1Btn.addEventListener("click", function() {
         return;
     }
 
+    // Save to Firestore
     db.collection("predictions").add({
         user: currentUser,
         match: "Brazil_vs_France",
@@ -103,6 +154,14 @@ lockMatch1Btn.addEventListener("click", function() {
     })
     .then(() => {
         alert("Prediction locked!");
+        
+        // Disable the boxes so they can't be changed, but leave numbers visible
+        inputBrazil.disabled = true;
+        inputFrance.disabled = true;
+        
+        // Disable the button and change text
+        lockMatch1Btn.disabled = true;
+        lockMatch1Btn.innerText = "Locked";
     })
     .catch((error) => {
         console.error("Error adding document: ", error);
