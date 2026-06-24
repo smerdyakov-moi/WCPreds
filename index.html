@@ -2,65 +2,69 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WC2026</title>
-    <link rel="stylesheet" href="index.css">
+    <title>World Cup Predictor</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <center>
-        <h1>World Cup Predictor 2026</h1>
+        <h1>World Cup Predictor</h1>
         <hr width="80%">
     </center>
 
-    <fieldset id="login-section">
-        <legend><b>User Login</b></legend>
-        <p>Enter your username to lock in your predictions.</p>
-        <input type="text" id="username" placeholder="Pragyan or Nischal">
-        <button id="login-btn">Log In</button>
-    </fieldset>
+    <center id="login-screen">
+        <fieldset style="width: 300px; margin-top: 50px;">
+            <legend><b>Identify Yourself</b></legend>
+            <p>Who is predicting?</p>
+            <button id="btn-pragyan" style="width: 100px; height: 30px; margin-right: 10px;">Pragyan</button>
+            <button id="btn-nischal" style="width: 100px; height: 30px;">Nischal</button>
+        </fieldset>
+    </center>
 
-    <br>
+    <div id="dashboard" style="display: none;">
+        <p><b>Logged in as:</b> <span id="display-name"></span> | <a href="#" id="logout-link">Switch User</a></p>
 
-    <fieldset id="prediction-section" style="display: none;">
-        <legend><b>Make Your Prediction</b></legend>
-        <table border="1" cellpadding="5" cellspacing="0">
-            <tr bgcolor="#000080" style="color: white;">
-                <th>Team A</th>
-                <th>Score A</th>
-                <th>Score B</th>
-                <th>Team B</th>
-                <th>Action</th>
-            </tr>
-            <tr>
-                <td>Brazil</td>
-                <td><input type="number" id="score-a" min="0" style="width: 40px;"></td>
-                <td><input type="number" id="score-b" min="0" style="width: 40px;"></td>
-                <td>France</td>
-                <td><button id="submit-btn">Lock Prediction</button></td>
-            </tr>
-        </table>
-    </fieldset>
+        <fieldset>
+            <legend><b>Leaderboard</b></legend>
+            <table border="1" cellpadding="5" cellspacing="0" width="100%">
+                <tr bgcolor="#000080" style="color: white;">
+                    <th>Player</th>
+                    <th>Points</th>
+                </tr>
+                <tr>
+                    <td>Pragyan</td>
+                    <td id="points-pragyan">0</td>
+                </tr>
+                <tr>
+                    <td>Nischal</td>
+                    <td id="points-nischal">0</td>
+                </tr>
+            </table>
+        </fieldset>
 
-    <br>
+        <br>
 
-    <fieldset>
-        <legend><b>Current Standings</b></legend>
-        <table border="1" cellpadding="5" cellspacing="0" width="300">
-            <tr bgcolor="#000080" style="color: white;">
-                <th>Player</th>
-                <th>Points</th>
-            </tr>
-            <tr>
-                <td>Pragyan</td>
-                <td id="score-pragyan">0</td>
-            </tr>
-            <tr>
-                <td>Nischal</td>
-                <td id="score-nischal">0</td>
-            </tr>
-        </table>
-    </fieldset>
+        <fieldset>
+            <legend><b>Make Prediction</b></legend>
+            <table border="1" cellpadding="5" cellspacing="0" width="100%">
+                <tr bgcolor="#000080" style="color: white;">
+                    <th>Match</th>
+                    <th>Your Prediction</th>
+                    <th>Action</th>
+                </tr>
+                <tr>
+                    <td><b>Brazil vs France</b></td>
+                    <td>
+                        Brazil: <input type="number" id="pred-brazil" min="0" style="width: 40px;">
+                        - 
+                        France: <input type="number" id="pred-france" min="0" style="width: 40px;">
+                    </td>
+                    <td><button id="lock-match-1">Lock In</button></td>
+                </tr>
+            </table>
+        </fieldset>
+    </div>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
