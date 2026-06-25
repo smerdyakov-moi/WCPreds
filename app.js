@@ -87,6 +87,7 @@ async function savePrediction(m) {
 async function updateLeaderboard() {
     const scoreDoc = await db.collection("scores").doc("current_standings").get();
     let points = scoreDoc.exists ? scoreDoc.data() : { "Pragyan": 0, "Nischal": 0 };
+    
     const predictionsSnap = await db.collection("predictions").get();
     let matchGroups = {};
     predictionsSnap.forEach(doc => {
@@ -101,25 +102,45 @@ async function updateLeaderboard() {
 
         const finalA = realMatch.score.fullTime.home;
         const finalB = realMatch.score.fullTime.away;
-        let historyData = { match: realMatch.homeTeam.tla + " vs " + realMatch.awayTeam.tla, result: finalA + "-" + finalB, timestamp: new Date() };
+        let historyData = { 
+            match: realMatch.homeTeam.tla + " vs " + realMatch.awayTeam.tla, 
+            result: finalA + "-" + finalB, 
+            timestamp: new Date() 
+        };
 
+        // Calculate base points (5 for exact, 2 for outcome)
         matchGroups[matchId].forEach(p => {
             historyData[p.user + "_pred"] = p.homeScore + "-" + p.awayScore;
             if (!points.hasOwnProperty(p.user)) points[p.user] = 0;
+            
             let earned = 0;
             if (p.homeScore === finalA && p.awayScore === finalB) earned = 5;
             else if (Math.sign(p.homeScore - p.awayScore) === Math.sign(finalA - finalB)) earned = 2;
+            
             points[p.user] += earned;
             historyData[p.user + "_points"] = earned;
         });
 
-        if (matchGroups[matchId].length > 1) {
-            const p1 = matchGroups[matchId][0], p2 = matchGroups[matchId][1];
+        // Determine if anyone got the exact score to block proximity bonus
+        const anyoneGotExact = matchGroups[matchId].some(p => p.homeScore === finalA && p.awayScore === finalB);
+
+        // Apply proximity bonus only if NO ONE got an exact score
+        if (!anyoneGotExact && matchGroups[matchId].length > 1) {
+            const p1 = matchGroups[matchId][0];
+            const p2 = matchGroups[matchId][1];
+            
             const d1 = Math.abs(finalA - p1.homeScore) + Math.abs(finalB - p1.awayScore);
             const d2 = Math.abs(finalA - p2.homeScore) + Math.abs(finalB - p2.awayScore);
-            if (d1 < d2) { points[p1.user] += 1; historyData[p1.user + "_points"] += 1; }
-            else if (d2 < d1) { points[p2.user] += 1; historyData[p2.user + "_points"] += 1; }
+            
+            if (d1 < d2) { 
+                points[p1.user] += 1; 
+                historyData[p1.user + "_points"] += 1; 
+            } else if (d2 < d1) { 
+                points[p2.user] += 1; 
+                historyData[p2.user + "_points"] += 1; 
+            }
         }
+        
         await db.collection("match_history").doc(matchId).set(historyData);
     }
     await db.collection("scores").doc("current_standings").set(points);
