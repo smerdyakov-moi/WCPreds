@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>World Cup Predictor</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="wc.ico">
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+
+    <center>
+        <h1>World Cup Predictor</h1>
+        <hr width="80%">
+    </center>
+
+    <center id="login-screen">
+        <fieldset style="width: 300px; margin-top: 50px;">
+            <legend><b>Identify Yourself</b></legend>
+            <button id="btn-pragyan">Pragyan</button>
+            <button id="btn-nischal">Nischal</button>
+        </fieldset>
+    </center>
+
+    <div id="dashboard" style="display: none; padding: 20px;">
+        <p><b>Logged in as:</b> <span id="display-name"></span> | <a href="#" id="logout-link">Switch User</a></p>
+
+        <div class="dashboard-container">
+            <div class="column">
+                <fieldset>
+                    <legend><b>Leaderboard</b></legend>
+                    <table>
+                        <tr bgcolor="#000080" style="color: white;"><th>Player</th><th>Points</th></tr>
+                        <tr><td>Pragyan</td><td id="points-pragyan">0</td></tr>
+                        <tr><td>Nischal</td><td id="points-nischal">0</td></tr>
+                    </table>
+                </fieldset>
+                <fieldset>
+                    <legend><b>Make Prediction</b></legend>
+                    <table>
+                        <thead><tr bgcolor="#000080" style="color: white;"><th>Match</th><th>Prediction</th><th>Action</th></tr></thead>
+                        <tbody id="match-table-body"></tbody>
+                    </table>
+                </fieldset>
+            </div>
+
+            <div class="column">
+                <fieldset>
+                    <legend><b>Match History</b></legend>
+                    <div class="scroll-container">
+                        <table>
+                            <tr bgcolor="#000080" style="color: white;">
+                                <th>Match</th><th>Score</th><th>Nischal</th><th>Pragyan</th>
+                            </tr>
+                            <tbody id="history-table-body"></tbody>
+                        </table>
+                    </div>
+                </fieldset>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

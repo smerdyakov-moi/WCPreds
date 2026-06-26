@@ -1,0 +1,69 @@
+body {
+    background-color: #C0C0C0;
+    background-image: url('bg.jpg');
+    background-size: cover;                  
+    background-attachment: fixed;            
+    background-position: center;             
+    font-family: "Times New Roman", Times, serif;
+    color: #000000;
+    margin: 20px;
+}
+h1 {
+    font-family: Arial, sans-serif;
+    color: #000080;
+}
+fieldset {
+    background-color: #FFFFFF;
+    border: 2px solid #808080;
+    border-right-color: #FFFFFF;
+    border-bottom-color: #FFFFFF;
+    box-shadow: 2px 2px 0px #000000;
+    margin-bottom: 20px;
+}
+table {
+    background-color: #FFFFFF;
+    border-collapse: collapse;
+    width: 100%;
+}
+th, td {
+    border: 1px solid #808080;
+    padding: 8px;
+    text-align: center;
+}
+button {
+    background-color: #C0C0C0;
+    border: 2px solid #FFFFFF;
+    border-right-color: #808080;
+    border-bottom-color: #808080;
+    font-weight: bold;
+    cursor: pointer;
+}
+button:active {
+    border: 2px solid #808080;
+    border-right-color: #FFFFFF;
+    border-bottom-color: #FFFFFF;
+}
+input {
+    border: 2px inset #E0E0E0;
+}
+.dashboard-container {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+.column {
+    flex: 1;
+}
+.scroll-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 2px inset #E0E0E0;
+    background-color: #FFFFFF;
+}
+.scroll-container table {
+    table-layout: fixed;
+}
+.scroll-container th:nth-child(1), .scroll-container td:nth-child(1) { width: 30%; }
+.scroll-container th:nth-child(2), .scroll-container td:nth-child(2) { width: 15%; }
+.scroll-container th:nth-child(3), .scroll-container td:nth-child(3) { width: 27.5%; }
+.scroll-container th:nth-child(4), .scroll-container td:nth-child(4) { width: 27.5%; }
