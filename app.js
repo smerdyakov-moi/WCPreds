@@ -12,18 +12,15 @@ const db = firebase.firestore();
 
 let currentUser = "";
 let allMatches = [];
+let userPredictions = {};
 
-// ─── Helpers (Moved to top to prevent ReferenceError) ───────────────────────
+function isDraw(home, away) { return home === away; }
 
-function isDraw(home, away) {
-    return home === away;
-}
-
-function formatPredDisplay(pred) {
+function formatPredDisplay(pred, matchObj) {
     let s = `${pred.homeScore}-${pred.awayScore}`;
     if (pred.penaltyWinner) {
-        const label = pred.penaltyWinner === "home" ? "H pen" : "A pen";
-        s += ` (${label})`;
+        const teamName = pred.penaltyWinner === "home" ? matchObj.homeTeam.name : matchObj.awayTeam.name;
+        s += ` (${teamName} Win)`;
     }
     return s;
 }
@@ -31,119 +28,80 @@ function formatPredDisplay(pred) {
 function calcPoints(p, finalA, finalB, actualPenWinner) {
     const exactScore = p.homeScore === finalA && p.awayScore === finalB;
     const isPredictedDraw = p.homeScore === p.awayScore;
-    const isActualDraw = finalA === finalB;
-    
     const actualWinner = actualPenWinner ? actualPenWinner : (finalA > finalB ? "home" : "away");
     const userWinner = isPredictedDraw ? p.penaltyWinner : (p.homeScore > p.awayScore ? "home" : "away");
-
     let total = 0;
-
-    if (exactScore) {
-        total += 5;
-    } else if (userWinner === actualWinner) {
-        total += 2;
-    }
-
-    if ((isPredictedDraw && actualPenWinner)||(!isPredictedDraw && !actualPenWinner)) {
-        total += 1;
-    }
-    
+    if (exactScore) total += 5;
+    else if (userWinner === actualWinner) total += 2;
+    if ((isPredictedDraw && actualPenWinner) || (!isPredictedDraw && !actualPenWinner)) total += 1;
     return total;
 }
-
-// ─── Core Logic ──────────────────────────────────────────────────────────────
-
-window.onload = async () => {
-    document.getElementById("points-pragyan").innerText = "...";
-    document.getElementById("points-nischal").innerText = "...";
-
-    db.collection("scores").doc("current_standings").onSnapshot((doc) => {
-        if (doc.exists) {
-            document.getElementById("points-pragyan").innerText = doc.data().Pragyan || 0;
-            document.getElementById("points-nischal").innerText = doc.data().Nischal || 0;
-        }
-    });
-
-    db.collection("match_history").orderBy("timestamp", "desc").onSnapshot(snap => {
-        const historyBody = document.getElementById("history-table-body");
-        historyBody.innerHTML = "";
-        snap.forEach(doc => {
-            const h = doc.data();
-            let resultDisplay = `<b>${h.result}</b>`;
-            if (h.penaltyWinner) resultDisplay += `<br><small>(${h.penaltyWinner} pen)</small>`;
-            historyBody.innerHTML += `<tr>
-                <td>${h.match}</td><td>${resultDisplay}</td>
-                <td>${h.Nischal_pred || '-'} / ${h.Nischal_points || 0}</td>
-                <td>${h.Pragyan_pred || '-'} / ${h.Pragyan_points || 0}</td>
-            </tr>`;
-        });
-    });
-
-    try {
-        const response = await fetch("/.netlify/functions/getMatches");
-        const data = await response.json();
-        if (data.matches) allMatches = data.matches;
-        const savedUser = localStorage.getItem("wcUser");
-        if (savedUser) logUserIn(savedUser);
-        await updateLeaderboard();
-    } catch (err) { console.error(err); }
-};
 
 async function renderMatches() {
     const tableBody = document.getElementById("match-table-body");
     tableBody.innerHTML = "";
     if (!currentUser) return;
-    
+
     const snap = await db.collection("predictions").where("user", "==", currentUser).get();
-    const userPredictions = new Map();
-    snap.forEach(doc => userPredictions.set(doc.data().matchId, doc.data()));
+    userPredictions = {};
+    snap.forEach(doc => userPredictions[doc.data().matchId] = doc.data());
 
     allMatches.filter(m => ["SCHEDULED", "TIMED", "POSTPONED"].includes(m.status)).slice(0, 5).forEach(m => {
-        const p = userPredictions.get(String(m.id));
-        const isLocked = !!p;
+        const pred = userPredictions[String(m.id)];
         const tr = document.createElement("tr");
-        
-        // Added the hidden penalty selector to the HTML template
-        tr.innerHTML = `<td><b>${m.homeTeam.tla} vs ${m.awayTeam.tla}</b></td>
-            <td>${isLocked ? `<b>${formatPredDisplay(p)}</b>` : 
-            `<input type="number" id="A-${m.id}" style="width:40px;" placeholder="H"> - 
-             <input type="number" id="B-${m.id}" style="width:40px;" placeholder="A">
-             <span id="pen-wrap-${m.id}" style="display:none;">
-                <select id="pen-${m.id}"><option value="home">${m.homeTeam.tla} Pen</option><option value="away">${m.awayTeam.tla} Pen</option></select>
-             </span>`}</td>
-            <td><button id="btn-${m.id}" ${isLocked ? 'disabled style="background-color: #808080;"' : ''}>${isLocked ? 'Locked' : 'Lock In'}</button></td>`;
-        
+
+        if (pred && pred.locked) {
+            tr.innerHTML = `
+                <td><b>${m.homeTeam.tla} vs ${m.awayTeam.tla}</b></td>
+                <td>${formatPredDisplay(pred, m)}</td>
+                <td><button disabled style="background-color: #cccccc;">Locked</button></td>`;
+        } else {
+            tr.innerHTML = `
+                <td><b>${m.homeTeam.tla} vs ${m.awayTeam.tla}</b></td>
+                <td id="cell-${m.id}">
+                    <input type="number" id="A-${m.id}" style="width:40px;" value="${pred ? pred.homeScore : ''}"> - 
+                    <input type="number" id="B-${m.id}" style="width:40px;" value="${pred ? pred.awayScore : ''}">
+                    <div id="pen-wrap-${m.id}" style="display:none; margin-top:5px;">
+                        <button id="pen-home-${m.id}">${m.homeTeam.name} Win</button>
+                        <button id="pen-away-${m.id}">${m.awayTeam.name} Win</button>
+                    </div>
+                </td>
+                <td><button id="btn-${m.id}">Lock In</button></td>`;
+        }
         tableBody.appendChild(tr);
-        
-        if (!isLocked) {
-            const aIn = document.getElementById(`A-${m.id}`);
-            const bIn = document.getElementById(`B-${m.id}`);
+
+        if (!pred || !pred.locked) {
+            const aIn = document.getElementById(`A-${m.id}`), bIn = document.getElementById(`B-${m.id}`);
             const penWrap = document.getElementById(`pen-wrap-${m.id}`);
+            const lockBtn = document.getElementById(`btn-${m.id}`);
             
             const check = () => {
-                // If both inputs have numbers AND are equal, show the dropdown
-                if (aIn.value !== "" && bIn.value !== "" && parseInt(aIn.value) === parseInt(bIn.value)) {
-                    penWrap.style.display = "inline";
-                } else {
-                    penWrap.style.display = "none";
-                }
+                const isDraw = (aIn.value !== "" && bIn.value !== "" && parseInt(aIn.value) === parseInt(bIn.value));
+                penWrap.style.display = isDraw ? "block" : "none";
+                lockBtn.style.display = isDraw ? "none" : "inline-block";
             };
-            
-            aIn.oninput = check;
-            bIn.oninput = check;
-            document.getElementById(`btn-${m.id}`).onclick = () => savePrediction(m);
+            aIn.oninput = bIn.oninput = check;
+            lockBtn.onclick = () => saveSimple(m, null);
+            document.getElementById(`pen-home-${m.id}`).onclick = () => saveSimple(m, "home");
+            document.getElementById(`pen-away-${m.id}`).onclick = () => saveSimple(m, "away");
         }
     });
 }
 
-async function savePrediction(m) {
-    const sA = document.getElementById(`A-${m.id}`).value, sB = document.getElementById(`B-${m.id}`).value;
-    if (!sA || !sB) return alert("Enter scores!");
-    let data = { user: currentUser, matchId: String(m.id), homeScore: parseInt(sA), awayScore: parseInt(sB), timestamp: new Date() };
-    if (sA === sB) data.penaltyWinner = document.getElementById(`pen-${m.id}`).value;
-    await db.collection("predictions").doc(`${currentUser}_${m.id}`).set(data);
-    alert("Locked!");
-    await renderMatches(); await updateLeaderboard();
+async function saveSimple(m, penWinner) {
+    const sA = document.getElementById(`A-${m.id}`).value;
+    const sB = document.getElementById(`B-${m.id}`).value;
+    if (!sA || !sB) return;
+    await db.collection("predictions").doc(`${currentUser}_${m.id}`).set({
+        user: currentUser,
+        matchId: String(m.id),
+        homeScore: parseInt(sA),
+        awayScore: parseInt(sB),
+        penaltyWinner: penWinner || null,
+        locked: true,
+        timestamp: new Date()
+    });
+    renderMatches();
 }
 
 async function updateLeaderboard() {
@@ -156,20 +114,16 @@ async function updateLeaderboard() {
     for (const matchId in matchGroups) {
         const realMatch = allMatches.find(m => String(m.id) === String(matchId) && ["FINISHED", "AWARDED"].includes(m.status));
         if (!realMatch || (await db.collection("match_history").doc(matchId).get()).exists) continue;
-
         const finalA = realMatch.score.fullTime.home, finalB = realMatch.score.fullTime.away;
         let actualPenWinner = (isDraw(finalA, finalB) && realMatch.score.penalties) ? (realMatch.score.penalties.home > realMatch.score.penalties.away ? "home" : "away") : null;
-        
         let historyData = { match: `${realMatch.homeTeam.tla} vs ${realMatch.awayTeam.tla}`, result: `${finalA}-${finalB}`, timestamp: new Date() };
         if (actualPenWinner) historyData.penaltyWinner = actualPenWinner;
-
         matchGroups[matchId].forEach(p => {
-            const { total } = calcPoints(p, finalA, finalB, actualPenWinner);
+            const total = calcPoints(p, finalA, finalB, actualPenWinner);
             points[p.user] = (points[p.user] || 0) + total;
-            historyData[`${p.user}_pred`] = formatPredDisplay(p);
+            historyData[`${p.user}_pred`] = formatPredDisplay(p, realMatch);
             historyData[`${p.user}_points`] = total;
         });
-
         const noExact = !matchGroups[matchId].some(p => p.homeScore === finalA && p.awayScore === finalB);
         if (noExact && matchGroups[matchId].length > 1) {
             const p1 = matchGroups[matchId][0], p2 = matchGroups[matchId][1];
@@ -188,9 +142,36 @@ function logUserIn(name) {
     document.getElementById("display-name").innerText = name;
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("dashboard").style.display = "block";
-    renderMatches(); 
+    renderMatches();
 }
 
-document.getElementById("btn-pragyan").onclick = () => logUserIn("Pragyan");
-document.getElementById("btn-nischal").onclick = () => logUserIn("Nischal");
-document.getElementById("logout-link").onclick = (e) => { e.preventDefault(); localStorage.removeItem("wcUser"); location.reload(); };
+document.addEventListener("DOMContentLoaded", async () => {
+    document.getElementById("btn-pragyan").onclick = () => logUserIn("Pragyan");
+    document.getElementById("btn-nischal").onclick = () => logUserIn("Nischal");
+    document.getElementById("logout-link").onclick = (e) => { e.preventDefault(); localStorage.removeItem("wcUser"); location.reload(); };
+
+    db.collection("scores").doc("current_standings").onSnapshot(doc => {
+        if (doc.exists) {
+            document.getElementById("points-pragyan").innerText = doc.data().Pragyan || 0;
+            document.getElementById("points-nischal").innerText = doc.data().Nischal || 0;
+        }
+    });
+
+    db.collection("match_history").orderBy("timestamp", "desc").onSnapshot(snap => {
+        const historyBody = document.getElementById("history-table-body");
+        historyBody.innerHTML = "";
+        snap.forEach(doc => {
+            const h = doc.data();
+            historyBody.innerHTML += `<tr><td>${h.match}</td><td><b>${h.result}</b>${h.penaltyWinner ? `<br><small>(${h.penaltyWinner} pen)</small>` : ''}</td><td>${h.Nischal_pred || '-'} / ${h.Nischal_points || 0}</td><td>${h.Pragyan_pred || '-'} / ${h.Pragyan_points || 0}</td></tr>`;
+        });
+    });
+
+    try {
+        const response = await fetch("/.netlify/functions/getMatches");
+        const data = await response.json();
+        if (data.matches) allMatches = data.matches;
+        const savedUser = localStorage.getItem("wcUser");
+        if (savedUser) logUserIn(savedUser);
+        await updateLeaderboard();
+    } catch (err) {}
+});

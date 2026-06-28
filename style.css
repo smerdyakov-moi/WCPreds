@@ -63,7 +63,13 @@ input {
 .scroll-container table {
     table-layout: fixed;
 }
+#match-table-body td {
+    display: table-cell !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
 .scroll-container th:nth-child(1), .scroll-container td:nth-child(1) { width: 30%; }
-.scroll-container th:nth-child(2), .scroll-container td:nth-child(2) { width: 15%; }
+.scroll-container th:nth-child(2), .scroll-container td:nth-child(2) { width: 35%; }
 .scroll-container th:nth-child(3), .scroll-container td:nth-child(3) { width: 27.5%; }
 .scroll-container th:nth-child(4), .scroll-container td:nth-child(4) { width: 27.5%; }
