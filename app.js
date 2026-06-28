@@ -30,17 +30,25 @@ function formatPredDisplay(pred) {
 
 function calcPoints(p, finalA, finalB, actualPenWinner) {
     const exactScore = p.homeScore === finalA && p.awayScore === finalB;
-    const correctOutcome = Math.sign(p.homeScore - p.awayScore) === Math.sign(finalA - finalB);
+    const isPredictedDraw = p.homeScore === p.awayScore;
+    const isActualDraw = finalA === finalB;
     
-    let base = 0;
-    if (exactScore) base = 5;
-    else if (correctOutcome) base = 2;
+    const actualWinner = actualPenWinner ? actualPenWinner : (finalA > finalB ? "home" : "away");
+    const userWinner = isPredictedDraw ? p.penaltyWinner : (p.homeScore > p.awayScore ? "home" : "away");
 
-    let penBonus = 0;
-    if (exactScore && isDraw(finalA, finalB) && actualPenWinner && p.penaltyWinner === actualPenWinner) {
-        penBonus = 2;
+    let total = 0;
+
+    if (exactScore) {
+        total += 5;
+    } else if (userWinner === actualWinner) {
+        total += 2;
     }
-    return { base, penBonus, total: base + penBonus };
+
+    if ((isPredictedDraw && actualPenWinner)||(!isPredictedDraw && !actualPenWinner)) {
+        total += 1;
+    }
+    
+    return total;
 }
 
 // ─── Core Logic ──────────────────────────────────────────────────────────────
@@ -94,15 +102,35 @@ async function renderMatches() {
         const p = userPredictions.get(String(m.id));
         const isLocked = !!p;
         const tr = document.createElement("tr");
+        
+        // Added the hidden penalty selector to the HTML template
         tr.innerHTML = `<td><b>${m.homeTeam.tla} vs ${m.awayTeam.tla}</b></td>
-            <td>${isLocked ? `<b>${formatPredDisplay(p)}</b>` : `<input type="number" id="A-${m.id}" style="width:40px;"> - <input type="number" id="B-${m.id}" style="width:40px;">
-            <select id="pen-${m.id}" style="display:none;"><option value="home">${m.homeTeam.tla}</option><option value="away">${m.awayTeam.tla}</option></select>`}</td>
+            <td>${isLocked ? `<b>${formatPredDisplay(p)}</b>` : 
+            `<input type="number" id="A-${m.id}" style="width:40px;" placeholder="H"> - 
+             <input type="number" id="B-${m.id}" style="width:40px;" placeholder="A">
+             <span id="pen-wrap-${m.id}" style="display:none;">
+                <select id="pen-${m.id}"><option value="home">${m.homeTeam.tla} Pen</option><option value="away">${m.awayTeam.tla} Pen</option></select>
+             </span>`}</td>
             <td><button id="btn-${m.id}" ${isLocked ? 'disabled style="background-color: #808080;"' : ''}>${isLocked ? 'Locked' : 'Lock In'}</button></td>`;
+        
         tableBody.appendChild(tr);
+        
         if (!isLocked) {
-            const aIn = document.getElementById(`A-${m.id}`), bIn = document.getElementById(`B-${m.id}`), penSel = document.getElementById(`pen-${m.id}`);
-            const check = () => { penSel.style.display = (aIn.value !== "" && bIn.value !== "" && aIn.value === bIn.value) ? "inline" : "none"; };
-            aIn.oninput = bIn.oninput = check;
+            const aIn = document.getElementById(`A-${m.id}`);
+            const bIn = document.getElementById(`B-${m.id}`);
+            const penWrap = document.getElementById(`pen-wrap-${m.id}`);
+            
+            const check = () => {
+                // If both inputs have numbers AND are equal, show the dropdown
+                if (aIn.value !== "" && bIn.value !== "" && parseInt(aIn.value) === parseInt(bIn.value)) {
+                    penWrap.style.display = "inline";
+                } else {
+                    penWrap.style.display = "none";
+                }
+            };
+            
+            aIn.oninput = check;
+            bIn.oninput = check;
             document.getElementById(`btn-${m.id}`).onclick = () => savePrediction(m);
         }
     });
