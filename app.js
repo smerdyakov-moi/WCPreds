@@ -19,8 +19,8 @@ function isDraw(home, away) { return home === away; }
 function formatPredDisplay(pred, matchObj) {
     let s = `${pred.homeScore}-${pred.awayScore}`;
     if (pred.penaltyWinner) {
-        const teamName = pred.penaltyWinner === "home" ? matchObj.homeTeam.name : matchObj.awayTeam.name;
-        s += ` (${teamName} Win)`;
+        const teamTLA = pred.penaltyWinner === "home" ? matchObj.homeTeam.tla : matchObj.awayTeam.tla;
+        s += ` (${teamTLA} Win)`;
     }
     return s;
 }
@@ -62,8 +62,8 @@ async function renderMatches() {
                     <input type="number" id="A-${m.id}" style="width:40px;" value="${pred ? pred.homeScore : ''}"> - 
                     <input type="number" id="B-${m.id}" style="width:40px;" value="${pred ? pred.awayScore : ''}">
                     <div id="pen-wrap-${m.id}" style="display:none; margin-top:5px;">
-                        <button id="pen-home-${m.id}">${m.homeTeam.name} Win</button>
-                        <button id="pen-away-${m.id}">${m.awayTeam.name} Win</button>
+                        <button id="pen-home-${m.id}">${m.homeTeam.tla} Win</button>
+                        <button id="pen-away-${m.id}">${m.awayTeam.tla} Win</button>
                     </div>
                 </td>
                 <td><button id="btn-${m.id}">Lock In</button></td>`;
@@ -116,7 +116,18 @@ async function updateLeaderboard() {
         if (!realMatch || (await db.collection("match_history").doc(matchId).get()).exists) continue;
         const finalA = realMatch.score.fullTime.home, finalB = realMatch.score.fullTime.away;
         let actualPenWinner = (isDraw(finalA, finalB) && realMatch.score.penalties) ? (realMatch.score.penalties.home > realMatch.score.penalties.away ? "home" : "away") : null;
-        let historyData = { match: `${realMatch.homeTeam.tla} vs ${realMatch.awayTeam.tla}`, result: `${finalA}-${finalB}`, timestamp: new Date() };
+        
+        let resultString = `${finalA}-${finalB}`;
+        if (actualPenWinner) {
+            const winnerTLA = actualPenWinner === "home" ? realMatch.homeTeam.tla : realMatch.awayTeam.tla;
+            resultString += ` (${winnerTLA} wins)`;
+        }
+
+        let historyData = { 
+            match: `${realMatch.homeTeam.tla} vs ${realMatch.awayTeam.tla}`, 
+            result: resultString, 
+            timestamp: new Date() 
+        };
         if (actualPenWinner) historyData.penaltyWinner = actualPenWinner;
         matchGroups[matchId].forEach(p => {
             const total = calcPoints(p, finalA, finalB, actualPenWinner);
@@ -162,7 +173,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         historyBody.innerHTML = "";
         snap.forEach(doc => {
             const h = doc.data();
-            historyBody.innerHTML += `<tr><td>${h.match}</td><td><b>${h.result}</b>${h.penaltyWinner ? `<br><small>(${h.penaltyWinner} pen)</small>` : ''}</td><td>${h.Nischal_pred || '-'} / ${h.Nischal_points || 0}</td><td>${h.Pragyan_pred || '-'} / ${h.Pragyan_points || 0}</td></tr>`;
+            historyBody.innerHTML += `<tr><td>${h.match}</td><td><b>${h.result}</b></td><td>${h.Nischal_pred || '-'} / ${h.Nischal_points || 0}</td><td>${h.Pragyan_pred || '-'} / ${h.Pragyan_points || 0}</td></tr>`;
         });
     });
 
