@@ -28,12 +28,15 @@ function formatPredDisplay(pred, matchObj) {
 function calcPoints(p, finalA, finalB, actualPenWinner) {
     const exactScore = p.homeScore === finalA && p.awayScore === finalB;
     const isPredictedDraw = p.homeScore === p.awayScore;
+    const isActualDraw = finalA === finalB;
     const actualWinner = actualPenWinner ? actualPenWinner : (finalA > finalB ? "home" : "away");
     const userWinner = isPredictedDraw ? p.penaltyWinner : (p.homeScore > p.awayScore ? "home" : "away");
+    
     let total = 0;
     if (exactScore) total += 5;
     else if (userWinner === actualWinner) total += 2;
-    if ((isPredictedDraw && actualPenWinner) || (!isPredictedDraw && !actualPenWinner)) total += 1;
+    if (isPredictedDraw === isActualDraw) total += 1;
+    
     return total;
 }
 
@@ -114,7 +117,10 @@ async function updateLeaderboard() {
     for (const matchId in matchGroups) {
         const realMatch = allMatches.find(m => String(m.id) === String(matchId) && ["FINISHED", "AWARDED"].includes(m.status));
         if (!realMatch || (await db.collection("match_history").doc(matchId).get()).exists) continue;
-        const finalA = realMatch.score.fullTime.home, finalB = realMatch.score.fullTime.away;
+
+        const finalA = realMatch.score.regularTime ? realMatch.score.regularTime.home : 1; 
+        const finalB = realMatch.score.regularTime ? realMatch.score.regularTime.away : 1;
+
         let actualPenWinner = (isDraw(finalA, finalB) && realMatch.score.penalties) ? (realMatch.score.penalties.home > realMatch.score.penalties.away ? "home" : "away") : null;
         
         let resultString = `${finalA}-${finalB}`;
