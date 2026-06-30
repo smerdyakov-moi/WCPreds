@@ -118,10 +118,16 @@ async function updateLeaderboard() {
         const realMatch = allMatches.find(m => String(m.id) === String(matchId) && ["FINISHED", "AWARDED"].includes(m.status));
         if (!realMatch || (await db.collection("match_history").doc(matchId).get()).exists) continue;
 
-        const finalA = realMatch.score.regularTime ? realMatch.score.regularTime.home : 1; 
-        const finalB = realMatch.score.regularTime ? realMatch.score.regularTime.away : 1;
+        const s = realMatch.score;
+        let finalA = (s.regularTime?.home ?? 0) + (s.extraTime?.home ?? 0);
+        let finalB = (s.regularTime?.away ?? 0) + (s.extraTime?.away ?? 0);
+        
+        if (finalA === 0 && finalB === 0 && s.fullTime?.home !== null) {
+            finalA = s.fullTime.home;
+            finalB = s.fullTime.away;
+        }
 
-        let actualPenWinner = (isDraw(finalA, finalB) && realMatch.score.penalties) ? (realMatch.score.penalties.home > realMatch.score.penalties.away ? "home" : "away") : null;
+        let actualPenWinner = (isDraw(finalA, finalB) && s.penalties?.home !== null) ? (s.penalties.home > s.penalties.away ? "home" : "away") : null;
         
         let resultString = `${finalA}-${finalB}`;
         if (actualPenWinner) {
@@ -135,12 +141,14 @@ async function updateLeaderboard() {
             timestamp: new Date() 
         };
         if (actualPenWinner) historyData.penaltyWinner = actualPenWinner;
+        
         matchGroups[matchId].forEach(p => {
             const total = calcPoints(p, finalA, finalB, actualPenWinner);
             points[p.user] = (points[p.user] || 0) + total;
             historyData[`${p.user}_pred`] = formatPredDisplay(p, realMatch);
             historyData[`${p.user}_points`] = total;
         });
+
         const noExact = !matchGroups[matchId].some(p => p.homeScore === finalA && p.awayScore === finalB);
         if (noExact && matchGroups[matchId].length > 1) {
             const p1 = matchGroups[matchId][0], p2 = matchGroups[matchId][1];
